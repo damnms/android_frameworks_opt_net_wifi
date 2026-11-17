@@ -26,6 +26,7 @@
           <item type="bool" name="config_wifiFrameworkMaxNumSpatialStreamDeviceOverrideEnable" />
           <item type="integer" name="config_wifiFrameworkMaxNumSpatialStreamDeviceOverrideValue" />
           <item type="bool" name="config_wifi_fast_bss_transition_enabled" />
+          <item type="bool" name="config_wifiSha256KeyMgmtSupported" />
           <item type="string" name="config_wifi_p2p_device_type" />
           <item type="bool" name="config_wifi_background_scan_support" />
           <item type="bool" name="config_wifi_revert_country_code_on_cellular_loss" />

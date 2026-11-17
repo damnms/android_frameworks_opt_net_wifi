@@ -3458,6 +3458,12 @@ public class SupplicantStaNetworkHal {
                 // SHA256 key management requires HALv1.2 or higher
                 return modifiedFlags;
             }
+            // Some legacy drivers only accept the plain PSK/802.1X AKMs and reject
+            // the connect request when wpa_supplicant picks a SHA256 AKM.
+            if (!mContext.getResources().getBoolean(
+                    R.bool.config_wifiSha256KeyMgmtSupported)) {
+                return modifiedFlags;
+            }
 
             if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
                 modifiedFlags.set(WifiConfiguration.KeyMgmt.WPA_PSK_SHA256);
