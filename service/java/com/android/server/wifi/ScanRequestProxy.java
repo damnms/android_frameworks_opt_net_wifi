@@ -140,6 +140,7 @@ public class ScanRequestProxy {
             }
             // Only process full band scan results.
             if (WifiScanner.isFullBandScan(scanData.getBandScanned(), false)) {
+                mWifiInjector.getWifiCountryCode().updateCountryCodeFromScanResults(scanResults);
                 // Store the last scan results & send out the scan completion broadcast.
                 mLastScanResults.clear();
                 mLastScanResults.addAll(Arrays.asList(scanResults));

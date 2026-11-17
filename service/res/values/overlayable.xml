@@ -30,6 +30,7 @@
           <item type="string" name="config_wifi_p2p_device_type" />
           <item type="bool" name="config_wifi_background_scan_support" />
           <item type="bool" name="config_wifi_revert_country_code_on_cellular_loss" />
+          <item type="bool" name="config_wifiCountryCodeFromScanResults" />
           <item type="integer" name="config_wifi_logger_ring_buffer_default_size_limit_kb" />
           <item type="integer" name="config_wifi_logger_ring_buffer_verbose_size_limit_kb" />
           <item type="array" name="config_wifi_fatal_firmware_alert_error_code_list" />

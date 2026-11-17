@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.wifi.ScanResult;
 import android.os.Handler;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -32,7 +33,11 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Provide functions for making changes to WiFi country code.
@@ -51,11 +56,18 @@ public class WifiCountryCode {
 
     private String mDefaultCountryCode = null;
     private String mTelephonyCountryCode = null;
+    private String mScanCountryCode = null;
+    private String mScanCountryTimestamp = null;
     private String mDriverCountryCode = null;
     private String mTelephonyCountryTimestamp = null;
     private String mDriverCountryTimestamp = null;
     private String mReadyTimestamp = null;
     private boolean mForceCountryCode = false;
+
+    /** 802.11d Country information element. */
+    private static final int EID_COUNTRY = 7;
+    /** Access points that must report a country before it is used. */
+    private static final int MIN_SCAN_COUNTRY_BSSIDS = 2;
 
     public WifiCountryCode(
             Context context,
@@ -197,6 +209,72 @@ public class WifiCountryCode {
     }
 
     /**
+     * Derive the country code from the 802.11d Country element of nearby access points.
+     * For devices without telephony: a country is used when at least
+     * MIN_SCAN_COUNTRY_BSSIDS access points report it and more than half of all access
+     * points with a Country element agree. The last detected country is kept until another
+     * one wins. Telephony and force-country-code take precedence.
+     * @param scanResults results of a full band scan
+     */
+    public synchronized void updateCountryCodeFromScanResults(ScanResult[] scanResults) {
+        if (scanResults == null || !mContext.getResources()
+                .getBoolean(R.bool.config_wifiCountryCodeFromScanResults)) {
+            return;
+        }
+        Map<String, Set<String>> bssidsByCountry = new HashMap<>();
+        int total = 0;
+        for (ScanResult result : scanResults) {
+            String country = getCountryFromInformationElements(result.informationElements);
+            if (country == null || result.BSSID == null) continue;
+            Set<String> bssids = bssidsByCountry.get(country);
+            if (bssids == null) {
+                bssids = new HashSet<>();
+                bssidsByCountry.put(country, bssids);
+            }
+            if (bssids.add(result.BSSID)) total++;
+        }
+        String best = null;
+        int bestCount = 0;
+        for (Map.Entry<String, Set<String>> entry : bssidsByCountry.entrySet()) {
+            if (entry.getValue().size() > bestCount) {
+                best = entry.getKey();
+                bestCount = entry.getValue().size();
+            }
+        }
+        if (best == null || bestCount < MIN_SCAN_COUNTRY_BSSIDS || bestCount * 2 <= total) {
+            if (DBG && total > 0) Log.d(TAG, "No scan country majority: " + bssidsByCountry);
+            return;
+        }
+        if (best.equals(mScanCountryCode)) return;
+        Log.d(TAG, "Country code from scan results: " + best + " (" + bestCount + " of "
+                + total + " access points)");
+        mScanCountryCode = best;
+        mScanCountryTimestamp = FORMATTER.format(new Date(System.currentTimeMillis()));
+        if (mReady) {
+            updateCountryCode();
+        } else {
+            Log.d(TAG, "skip update supplicant not ready yet");
+        }
+    }
+
+    private static String getCountryFromInformationElements(ScanResult.InformationElement[] ies) {
+        if (ies == null) return null;
+        for (ScanResult.InformationElement ie : ies) {
+            if (ie == null || ie.id != EID_COUNTRY || ie.bytes == null || ie.bytes.length < 2) {
+                continue;
+            }
+            char c0 = Character.toUpperCase((char) ie.bytes[0]);
+            char c1 = Character.toUpperCase((char) ie.bytes[1]);
+            if (c0 < 'A' || c0 > 'Z' || c1 < 'A' || c1 > 'Z') return null;
+            String country = "" + c0 + c1;
+            // "XX" and "ZZ" are used by access points without a configured country.
+            if (country.equals("XX") || country.equals("ZZ")) return null;
+            return country;
+        }
+        return null;
+    }
+
+    /**
      * Method to get the Country Code that was sent to wpa_supplicant.
      *
      * @return Returns the local copy of the Country Code that was sent to the driver upon
@@ -232,6 +310,8 @@ public class WifiCountryCode {
         pw.println("mDriverCountryCode: " + mDriverCountryCode);
         pw.println("mTelephonyCountryCode: " + mTelephonyCountryCode);
         pw.println("mTelephonyCountryTimestamp: " + mTelephonyCountryTimestamp);
+        pw.println("mScanCountryCode: " + mScanCountryCode);
+        pw.println("mScanCountryTimestamp: " + mScanCountryTimestamp);
         pw.println("mDriverCountryTimestamp: " + mDriverCountryTimestamp);
         pw.println("mReadyTimestamp: " + mReadyTimestamp);
         pw.println("mReady: " + mReady);
@@ -260,6 +340,9 @@ public class WifiCountryCode {
 
         if (mTelephonyCountryCode != null) {
             return mTelephonyCountryCode;
+        }
+        if (mScanCountryCode != null) {
+            return mScanCountryCode;
         }
         if (mDefaultCountryCode != null) {
             return mDefaultCountryCode;

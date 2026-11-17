@@ -82,6 +82,7 @@ public class ScanRequestProxyTest extends WifiBaseTest {
     @Mock private AppOpsManager mAppOps;
     @Mock private ActivityManager mActivityManager;
     @Mock private WifiInjector mWifiInjector;
+    @Mock private WifiCountryCode mWifiCountryCode;
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiScanner mWifiScanner;
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
@@ -114,6 +115,7 @@ public class ScanRequestProxyTest extends WifiBaseTest {
         MockitoAnnotations.initMocks(this);
 
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
+        when(mWifiInjector.getWifiCountryCode()).thenReturn(mWifiCountryCode);
         when(mWifiInjector.getWifiNetworkSuggestionsManager())
                 .thenReturn(mWifiNetworkSuggestionsManager);
         when(mWifiConfigManager.retrieveHiddenNetworkList()).thenReturn(TEST_HIDDEN_NETWORKS_LIST);

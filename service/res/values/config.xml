@@ -64,6 +64,10 @@
          radio is unable to find any MCC information to infer wifi country code from -->
     <bool translatable="false" name="config_wifi_revert_country_code_on_cellular_loss">false</bool>
 
+    <!-- Derive the country code from the 802.11d Country element of nearby access points
+         (devices without telephony). Telephony and the oem default take precedence. -->
+    <bool translatable="false" name="config_wifiCountryCodeFromScanResults">false</bool>
+
     <!-- Integer size limit, in KB, for a single WifiLogger ringbuffer, in default logging mode -->
     <integer translatable="false" name="config_wifi_logger_ring_buffer_default_size_limit_kb">32</integer>
 
