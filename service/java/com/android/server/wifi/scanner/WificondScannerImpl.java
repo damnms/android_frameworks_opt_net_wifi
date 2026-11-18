@@ -24,6 +24,7 @@ import android.net.wifi.WifiScanner.WifiBandIndex;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.util.ArraySet;
 import android.util.Log;
 
 import com.android.server.wifi.Clock;
@@ -142,6 +143,36 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         return mChannelHelper;
     }
 
+    /**
+     * Drop frequencies the driver does not offer right now, e.g. the DFS channel of a saved
+     * network while the driver is still on its worldwide locale after boot. Drivers that only
+     * list the allowed channels (bcmdhd) make nl80211 reject the whole scan with EINVAL then,
+     * so the scan never returns results. Falls back to a full band scan if nothing is left.
+     */
+    private Set<Integer> filterUnavailableFreqs(Set<Integer> freqs) {
+        if (freqs == null) return null;
+        mChannelHelper.updateChannels();
+        WifiScanner.ChannelSpec[][] available =
+                mChannelHelper.getAvailableScanChannels(WifiScanner.WIFI_BAND_ALL);
+        if (available == null) return freqs;
+        Set<Integer> known = new ArraySet<>();
+        for (WifiScanner.ChannelSpec[] band : available) {
+            if (band == null) continue;
+            for (WifiScanner.ChannelSpec spec : band) {
+                known.add(spec.frequency);
+            }
+        }
+        if (known.isEmpty()) return freqs;
+        Set<Integer> filtered = new ArraySet<>();
+        for (int freq : freqs) {
+            if (known.contains(freq)) filtered.add(freq);
+        }
+        if (filtered.size() == freqs.size()) return freqs;
+        Log.i(TAG, "Skipping scan freqs the driver does not offer: requested=" + freqs
+                + " scanning=" + (filtered.isEmpty() ? "all" : filtered));
+        return filtered.isEmpty() ? null : filtered;
+    }
+
     @Override
     public boolean startSingleScan(WifiNative.ScanSettings settings,
             WifiNative.ScanEventHandler eventHandler) {
@@ -183,7 +214,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             boolean success = false;
             Set<Integer> freqs;
             if (!allFreqs.isEmpty()) {
-                freqs = allFreqs.getScanFreqs();
+                freqs = filterUnavailableFreqs(allFreqs.getScanFreqs());
                 success = mWifiNative.scan(
                         getIfaceName(), settings.scanType, freqs, hiddenNetworkSSIDSet);
                 if (!success) {
