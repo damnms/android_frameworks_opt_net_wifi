@@ -195,4 +195,8 @@
 
     <!-- Speed label for very fast network speed -->
     <string name="speed_label_very_fast">Very Fast</string>
+
+    <!-- Summary for a network whose access points only offer security this device cannot
+         use, e.g. WPA3-only or WPA2 with PMF required. [CHAR LIMIT=NONE] -->
+    <string name="wifitrackerlib_wifi_security_not_supported">Not supported by this device (WPA3 or PMF required)</string>
 </resources>

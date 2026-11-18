@@ -74,9 +74,13 @@ import com.android.settingslib.HelpUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility methods for WifiTrackerLib.
@@ -126,6 +130,58 @@ class Utils {
             securityTypes.add(SECURITY_NONE);
         }
         return securityTypes;
+    }
+
+    // Key management names as ScanResult.capabilities spells them, longest first so that
+    // e.g. "PSK-SHA256" is not read as "PSK".
+    private static final Pattern AKM_PATTERN = Pattern.compile(
+            "EAP-FILS-SHA384|EAP-FILS-SHA256|EAP_SUITE_B_192|OWE_TRANSITION|PSK-SHA256"
+            + "|EAP-SHA256|WAPI-PSK|WAPI-CERT|FT/PSK|FT/EAP|FT/SAE|OSEN|None|PSK|EAP|SAE|OWE");
+
+    /**
+     * Returns false if every key management suite the ScanResult offers in its RSN/WPA
+     * elements is one the device cannot use, e.g. "[RSN-PSK-SHA256+SAE-CCMP]" on a device
+     * without SHA256 suites and SAE. The "[WPA2-...]" element only repeats the RSN element
+     * (cut after the first suite on transition networks) and is skipped. Open networks and
+     * suites not known here count as supported.
+     */
+    static boolean isScanResultSecuritySupported(@NonNull ScanResult scan,
+            boolean isSha256AkmSupported,
+            boolean isWpa3SaeSupported,
+            boolean isWpa3SuiteBSupported,
+            boolean isEnhancedOpenSupported) {
+        if (scan.capabilities == null) {
+            return true;
+        }
+        final Set<String> unsupported = new HashSet<>();
+        if (!isSha256AkmSupported) {
+            unsupported.add("PSK-SHA256");
+            unsupported.add("EAP-SHA256");
+        }
+        if (!isWpa3SaeSupported) {
+            unsupported.add("SAE");
+            unsupported.add("FT/SAE");
+        }
+        if (!isWpa3SuiteBSupported) {
+            unsupported.add("EAP_SUITE_B_192");
+        }
+        if (!isEnhancedOpenSupported) {
+            unsupported.add("OWE");
+        }
+        boolean hasAkm = false;
+        for (String element : scan.capabilities.split("\\[")) {
+            if (!element.startsWith("RSN-") && !element.startsWith("WPA-")) {
+                continue;
+            }
+            final Matcher matcher = AKM_PATTERN.matcher(element.substring(4));
+            while (matcher.find()) {
+                hasAkm = true;
+                if (!unsupported.contains(matcher.group())) {
+                    return true;
+                }
+            }
+        }
+        return !hasAkm;
     }
 
     // Returns the SECURITY type supported by a WifiConfiguration
@@ -214,8 +270,9 @@ class Utils {
             for (ScanResult scan : scanResultsBySsid.get(ssid)) {
                 List<Integer> securityTypes = getSecurityTypesFromScanResult(scan);
                 List<Integer> chosenSecurityTypes = new ArrayList<>();
-                // Ignore security types that are unsupported
-                if (!isWpa3SaeSupported) {
+                // Ignore security types that are unsupported. Keep SAE-only networks: the
+                // entry is shown as not supported instead of disappearing from the list.
+                if (!isWpa3SaeSupported && securityTypes.contains(SECURITY_PSK)) {
                     securityTypes.remove((Integer) SECURITY_SAE);
                 }
                 if (!isWpa3SuiteBSupported) {

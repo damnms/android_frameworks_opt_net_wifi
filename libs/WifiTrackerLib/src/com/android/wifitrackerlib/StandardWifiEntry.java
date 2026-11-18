@@ -130,6 +130,10 @@ public class StandardWifiEntry extends WifiEntry {
 
     private boolean mShouldAutoOpenCaptivePortal = false;
 
+    // False if no AP in range offers a key management suite this device can use.
+    private boolean mIsSecuritySupported = true;
+    @Nullable private WifiSecuritySupport mSecuritySupport;
+
     StandardWifiEntry(@NonNull Context context, @NonNull Handler callbackHandler,
             @NonNull String key,
             @NonNull List<ScanResult> scanResults,
@@ -201,7 +205,9 @@ public class StandardWifiEntry extends WifiEntry {
             }
         }
 
-        if (getConnectedState() == CONNECTED_STATE_DISCONNECTED) {
+        if (getConnectedState() == CONNECTED_STATE_DISCONNECTED && !mIsSecuritySupported) {
+            sj.add(mContext.getString(R.string.wifitrackerlib_wifi_security_not_supported));
+        } else if (getConnectedState() == CONNECTED_STATE_DISCONNECTED) {
             String disconnectDescription = getDisconnectedStateDescription(mContext, this);
             if (TextUtils.isEmpty(disconnectDescription)) {
                 if (concise) {
@@ -371,7 +377,8 @@ public class StandardWifiEntry extends WifiEntry {
     @Override
     public boolean canConnect() {
         if (mLevel == WIFI_LEVEL_UNREACHABLE
-                || getConnectedState() != CONNECTED_STATE_DISCONNECTED) {
+                || getConnectedState() != CONNECTED_STATE_DISCONNECTED
+                || !mIsSecuritySupported) {
             return false;
         }
         // Allow connection for EAP SIM dependent methods if the SIM of specified carrier ID is
@@ -403,6 +410,14 @@ public class StandardWifiEntry extends WifiEntry {
 
     @Override
     public void connect(@Nullable ConnectCallback callback) {
+        if (!mIsSecuritySupported) {
+            // The supplicant would fail without even trying to associate.
+            if (callback != null) {
+                mCallbackHandler.post(() -> callback.onConnectResult(
+                        ConnectCallback.CONNECT_STATUS_FAILURE_UNKNOWN));
+            }
+            return;
+        }
         mConnectCallback = callback;
         // We should flag this network to auto-open captive portal since this method represents
         // the user manually connecting to a network (i.e. not auto-join).
@@ -678,7 +693,7 @@ public class StandardWifiEntry extends WifiEntry {
     @Override
     public boolean shouldEditBeforeConnect() {
         WifiConfiguration wifiConfig = getWifiConfiguration();
-        if (wifiConfig == null) {
+        if (wifiConfig == null || !mIsSecuritySupported) {
             return false;
         }
 
@@ -713,6 +728,14 @@ public class StandardWifiEntry extends WifiEntry {
         synchronized (mLock) {
             mCurrentScanResults.clear();
             mCurrentScanResults.addAll(scanResults);
+        }
+
+        // Out of range keeps the last state, so saved networks are not flagged.
+        if (!scanResults.isEmpty()) {
+            if (mSecuritySupport == null) {
+                mSecuritySupport = new WifiSecuritySupport(mContext, mWifiManager);
+            }
+            mIsSecuritySupported = mSecuritySupport.isSupported(scanResults);
         }
 
         final ScanResult bestScanResult = getBestScanResultByLevel(scanResults);
