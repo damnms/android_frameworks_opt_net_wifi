@@ -138,9 +138,11 @@ public class ScanRequestProxy {
             if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "Received " + scanResults.length + " scan results");
             }
+            // Every beacon carries the Country element, so partial scans (e.g. the
+            // connected scans on known channels) count for the country code as well.
+            mWifiInjector.getWifiCountryCode().updateCountryCodeFromScanResults(scanResults);
             // Only process full band scan results.
             if (WifiScanner.isFullBandScan(scanData.getBandScanned(), false)) {
-                mWifiInjector.getWifiCountryCode().updateCountryCodeFromScanResults(scanResults);
                 // Store the last scan results & send out the scan completion broadcast.
                 mLastScanResults.clear();
                 mLastScanResults.addAll(Arrays.asList(scanResults));

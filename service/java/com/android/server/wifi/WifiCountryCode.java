@@ -252,6 +252,13 @@ public class WifiCountryCode {
         mScanCountryTimestamp = FORMATTER.format(new Date(System.currentTimeMillis()));
         if (mReady) {
             updateCountryCode();
+        } else if (mDriverCountryCode == null) {
+            // Already connected before any country was known (right after boot): the driver
+            // is still on its worldwide default and would only get the code at the next
+            // disconnect. Send it now; drivers that set it without a forced disassociation
+            // keep the connection and the new channels become usable for roaming.
+            Log.d(TAG, "Driver has no country code yet, sending scan country while connected");
+            updateCountryCode();
         } else {
             Log.d(TAG, "skip update supplicant not ready yet");
         }
