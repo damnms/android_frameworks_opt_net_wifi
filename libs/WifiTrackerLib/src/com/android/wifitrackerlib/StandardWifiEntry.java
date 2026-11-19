@@ -691,6 +691,11 @@ public class StandardWifiEntry extends WifiEntry {
     }
 
     @Override
+    public boolean isSecuritySupported() {
+        return mIsSecuritySupported;
+    }
+
+    @Override
     public boolean shouldEditBeforeConnect() {
         WifiConfiguration wifiConfig = getWifiConfiguration();
         if (wifiConfig == null || !mIsSecuritySupported) {

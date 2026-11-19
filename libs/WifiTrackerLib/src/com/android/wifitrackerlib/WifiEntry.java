@@ -490,6 +490,14 @@ public abstract class WifiEntry implements Comparable<WifiEntry> {
     }
 
     /**
+     * Returns false if none of the access points in range offers security this device can use
+     * (e.g. WPA3 only on a device without SAE).
+     */
+    public boolean isSecuritySupported() {
+        return true;
+    }
+
+    /**
      * Sets the callback listener for WifiEntryCallback methods.
      * Subsequent calls will overwrite the previous listener.
      */
